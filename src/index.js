@@ -5,6 +5,8 @@ import threadNoticeComponent from "../components/thread_notice.html";
 import postsRoute from "./api/posts.js";
 import { escapeHtml, serveHtml } from "./utils.js";
 
+import hljs from "highlight.js";
+
 /**
  * @param {any} post
  * @param {boolean} isReply
@@ -21,8 +23,29 @@ const renderPost = (post, isReply, threadId) => {
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
     `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 
-  const escapedContent = escapeHtml(post.content);
-  const content = escapedContent
+  /** @type {string[]} */
+  const codeblocks = [];
+
+  const codeblocksStashed = post.content.replace(
+    /```([\s\S]+?)```/g,
+    /**
+     * @param {*} _
+     * @param {string} code
+     * @returns
+     */
+    (_, code) => {
+      code = code.trim();
+      const result = hljs.highlightAuto(code);
+
+      codeblocks.push(
+        `<pre><code class="hljs language-${result.language ?? "plaintext"}">${result.value}</code></pre>`,
+      );
+
+      return `\u0000${codeblocks.length - 1}\u0000`;
+    },
+  );
+
+  const content = escapeHtml(codeblocksStashed)
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/([*_])(.+?)\1/g, "<i>$2</i>")
     .replace(/~~(.+?)~~/g, "<s>$1</s>")
@@ -38,7 +61,8 @@ const renderPost = (post, isReply, threadId) => {
       /\[([a-z]+)\]/g,
       '<img class="emoji" src="/img/emoji/$1.gif" alt="[$1]" />',
     )
-    .replace(/\n/g, "<br />");
+    .replace(/\n/g, "<br />")
+    .replace(/\u0000(\d+)\u0000/g, (_, i) => codeblocks[i]);
 
   const replyHref =
     isReply || threadId === post.id ? "#" : `/thread/${post.id}`;
