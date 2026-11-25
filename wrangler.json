@@ -19,7 +19,7 @@
       "name": "RL",
       "namespace_id": "1",
       "simple": {
-        "limit": 20,
+        "limit": 64,
         "period": 10
       }
     }
