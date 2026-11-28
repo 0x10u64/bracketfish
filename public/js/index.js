@@ -1,6 +1,8 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const threadId = window.location.pathname.split("/")[2] || null;
+
   let reloadPage = async () => {
-    const response = await fetch("/", { cache: "no-store" });
+    const response = await fetch(window.location.href, { cache: "no-store" });
     if (!response.ok) {
       throw new Error(`Reload failed: ${response.status}`);
     }
@@ -10,18 +12,33 @@ document.addEventListener("DOMContentLoaded", () => {
       "text/html",
     );
 
-    let postsDiv = doc.getElementById("posts");
-
-    if (!postsDiv) {
+    const postsDiv = doc.getElementById("posts");
+    if (!(postsDiv instanceof HTMLDivElement)) {
       throw new Error("No posts element in response");
     }
 
-    if (postsDiv instanceof Node) {
-      let currentPostsDiv = document.getElementById("posts");
-      if (currentPostsDiv instanceof Node) {
-        currentPostsDiv.replaceWith(document.importNode(postsDiv, true));
-      }
+    const currentPostsDiv = document.getElementById("posts");
+    if (!(currentPostsDiv instanceof HTMLDivElement)) {
+      throw new Error("No posts element in current page");
     }
+
+    const existingPostIds = new Set(
+      Array.from(currentPostsDiv.querySelectorAll(".post"), (post) => post.id),
+    );
+    const separatorTag = threadId ? "br" : "hr";
+
+    postsDiv.querySelectorAll(".post").forEach((post) => {
+      if (existingPostIds.has(post.id)) {
+        return;
+      }
+
+      if (existingPostIds.size > 0) {
+        currentPostsDiv.append(document.createElement(separatorTag));
+      }
+
+      currentPostsDiv.append(document.importNode(post, true));
+      existingPostIds.add(post.id);
+    });
   };
 
   /**
@@ -45,43 +62,44 @@ document.addEventListener("DOMContentLoaded", () => {
   const autoReloadInput = queryElement("autoReloadInput", HTMLInputElement);
   const autoReloadSpan = queryElement("autoReloadSpan", HTMLSpanElement);
 
-  const threadId = window.location.pathname.split("/")[2] || null;
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) {
+      return;
+    }
 
-  document.querySelectorAll('.post a[href^="#p"]').forEach((anchor) => {
-    anchor.addEventListener("click", () => {
+    const anchor = event.target.closest('.post a[href^="#p"]');
+    if (anchor instanceof HTMLAnchorElement) {
       const href = anchor.getAttribute("href");
-      if (!href || !/^#p[0-9a-f]{8}$/.test(href)) {
-        return;
+      if (href && /^#p[0-9a-f]{8}$/.test(href)) {
+        document.querySelectorAll(".highlight").forEach((el) => {
+          el.classList.remove("highlight");
+        });
+
+        const targetPost = document.getElementById(href.slice(1));
+        if (targetPost instanceof HTMLDivElement) {
+          targetPost.classList.add("highlight");
+          setTimeout(() => targetPost.classList.remove("highlight"), 5000);
+        }
       }
+    }
 
-      document.querySelectorAll(".highlight").forEach((el) => {
-        el.classList.remove("highlight");
-      });
+    const image = event.target.closest(".post > img");
+    if (image instanceof HTMLImageElement) {
+      image.classList.toggle("expanded");
+    }
 
-      const targetPost = document.getElementById(href.slice(1));
-      if (targetPost instanceof HTMLDivElement) {
-        targetPost.classList.add("highlight");
-        setTimeout(() => targetPost.classList.remove("highlight"), 5000);
-      }
-    });
-  });
-
-  document.querySelectorAll(".post > img").forEach((image) => {
-    image.addEventListener("click", () => image.classList.toggle("expanded"));
-  });
-
-  document.querySelectorAll('.post > div > a[href="#"]').forEach((anchor) => {
-    anchor.addEventListener("click", (event) => {
+    const replyAnchor = event.target.closest('.post > div > a[href="#"]');
+    if (replyAnchor instanceof HTMLAnchorElement) {
       event.preventDefault();
 
-      const post = anchor.closest(".post");
+      const post = replyAnchor.closest(".post");
       if (!(post instanceof HTMLDivElement)) {
         return;
       }
 
       postFormContent.focus();
       postFormContent.value += `>>${post.id.slice(1)}\n`;
-    });
+    }
   });
 
   emojiPicker.querySelectorAll("button[data-emoji]").forEach((button) => {
